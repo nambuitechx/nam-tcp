@@ -31,7 +31,10 @@ func Up(db *sql.DB) {
 			user_id TEXT NOT NULL,
             hash_token TEXT NOT NULL,
 			created_at INTEGER NOT NULL,
-			expires_at INTEGER NOT NULL
+			expires_at INTEGER NOT NULL,
+			revoked_at INTEGER NOT NULL,
+			target_host TEXT NOT NULL,
+			target_port TEXT NOT NULL
         );
 	`)
 	if err != nil {

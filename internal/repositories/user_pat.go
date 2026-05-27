@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"database/sql"
+	"net"
 	"time"
 
 	"github.com/nambuitechx/nam-tcp/internal/models"
@@ -78,6 +79,25 @@ func (r *UserPATRepository) GetUserPATByHashToken(hashToken string) (*models.Use
 	var user_pat models.UserPATModel
 	err := row.Scan(&user_pat.ID, &user_pat.UserID, &user_pat.TargetID, &user_pat.HashToken, &user_pat.CreatedAt, &user_pat.ExpiresAt, &user_pat.RevokedAt)
 	return &user_pat, err
+}
+
+func (r *UserPATRepository) ResolveTargetByHashToken(hashToken string, now int) (string, error) {
+	row := r.DB.QueryRow(
+		`SELECT t.host, t.port
+		 FROM user_pats p
+		 JOIN targets t ON t.id = p.target_id
+		 WHERE p.hash_token = ?
+		   AND p.revoked_at = 0
+		   AND p.expires_at > ?`,
+		hashToken, now,
+	)
+
+	var host, port string
+	if err := row.Scan(&host, &port); err != nil {
+		return "", err
+	}
+
+	return net.JoinHostPort(host, port), nil
 }
 
 func (r *UserPATRepository) RevokeExpiredUserPATs() error {

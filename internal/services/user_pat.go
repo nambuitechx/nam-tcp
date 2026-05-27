@@ -3,14 +3,18 @@ package services
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nambuitechx/nam-tcp/internal/models"
 	"github.com/nambuitechx/nam-tcp/internal/repositories"
 )
+
+var ErrInvalidPAT = errors.New("invalid, expired, or revoked pat")
 
 type UserPATService struct {
 	Repository *repositories.UserPATRepository
@@ -72,6 +76,29 @@ func (s *UserPATService) RevokeExpiredUserPATs() error {
 	return s.Repository.RevokeExpiredUserPATs()
 }
 
+func (s *UserPATService) ResolveTarget(plaintextToken string) (string, error) {
+	token := strings.TrimSpace(plaintextToken)
+	if token == "" {
+		return "", ErrInvalidPAT
+	}
+
+	hash := HashUserPATToken(token)
+	addr, err := s.Repository.ResolveTargetByHashToken(hash, int(time.Now().Unix()))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrInvalidPAT
+		}
+		return "", err
+	}
+
+	return addr, nil
+}
+
+func HashUserPATToken(plaintext string) string {
+	sum := sha256.Sum256([]byte(plaintext))
+	return hex.EncodeToString(sum[:])
+}
+
 func GenerateNewUserPAT() (string, string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -79,8 +106,5 @@ func GenerateNewUserPAT() (string, string, error) {
 	}
 
 	plaintext := "nam_tcp_" + hex.EncodeToString(buf)
-	sum := sha256.Sum256([]byte(plaintext))
-	hash := hex.EncodeToString(sum[:])
-
-	return plaintext, hash, nil
+	return plaintext, HashUserPATToken(plaintext), nil
 }

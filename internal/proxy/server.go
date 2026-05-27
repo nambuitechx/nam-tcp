@@ -1,18 +1,25 @@
 package proxy
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
+	"time"
 	"sync/atomic"
 )
 
+type TargetResolver interface {
+	ResolveTarget(plaintextToken string) (string, error)
+}
+
 type ProxyServer struct {
 	listener     net.Listener
-	target       string
+	resolver     TargetResolver
 	clients      map[net.Conn]struct{}
 	mu           sync.Mutex
 	done         chan struct{}
@@ -20,7 +27,7 @@ type ProxyServer struct {
 	shutdownOnce sync.Once
 }
 
-func NewProxyServer(address, target string) (*ProxyServer, error) {
+func NewProxyServer(address string, resolver TargetResolver) (*ProxyServer, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", address, err)
@@ -28,7 +35,7 @@ func NewProxyServer(address, target string) (*ProxyServer, error) {
 
 	return &ProxyServer{
 		listener: listener,
-		target:   target,
+		resolver: resolver,
 		clients:  make(map[net.Conn]struct{}),
 		done:     make(chan struct{}),
 	}, nil
@@ -95,25 +102,68 @@ func (ps *ProxyServer) handle(client net.Conn) {
 	defer client.Close()
 	defer ps.untrackClient(client)
 
-	target, err := net.Dial("tcp", ps.target)
+	if err := client.SetReadDeadline(time.Now().Add(AuthReadTimeout)); err != nil {
+		log.Println("auth deadline:", err)
+		return
+	}
+
+	reader := bufio.NewReader(client)
+	token, err := readAuthToken(reader)
+	if err != nil {
+		log.Println("auth read:", err)
+		return
+	}
+
+	targetAddr, err := ps.resolver.ResolveTarget(token)
+	if err != nil {
+		_, _ = io.WriteString(client, ResponseERR)
+		log.Println("auth failed:", err)
+		return
+	}
+
+	if err := client.SetReadDeadline(time.Time{}); err != nil {
+		log.Println("clear deadline:", err)
+		return
+	}
+
+	if _, err := io.WriteString(client, ResponseOK); err != nil {
+		log.Println("auth response:", err)
+		return
+	}
+
+	backend, err := net.Dial("tcp", targetAddr)
 	if err != nil {
 		log.Println("failed to dial target:", err)
 		return
 	}
-	defer target.Close()
+	defer backend.Close()
 
 	done := make(chan struct{}, 2)
 
 	go func() {
-		_, _ = io.Copy(target, client)
+		_, _ = io.Copy(backend, reader)
 		done <- struct{}{}
 	}()
 
 	go func() {
-		_, _ = io.Copy(client, target)
+		_, _ = io.Copy(client, backend)
 		done <- struct{}{}
 	}()
 
 	<-done
 	<-done
+}
+
+func readAuthToken(reader *bufio.Reader) (string, error) {
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+
+	token := strings.TrimSpace(line)
+	if token == "" {
+		return "", errors.New("empty token")
+	}
+
+	return token, nil
 }

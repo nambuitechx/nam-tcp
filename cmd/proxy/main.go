@@ -18,7 +18,6 @@ import (
 func main() {
 	httpAddr := envOr("HTTP_ADDR", ":8000")
 	proxyAddr := envOr("PROXY_ADDR", ":8888")
-	targetAddr := envOr("PROXY_TARGET", "localhost:8001")
 
 	db := internal_db.GetDBConnection()
 	internal_db.Up(db)
@@ -41,13 +40,13 @@ func main() {
 		}
 	}()
 
-	ps, err := internal_proxy.NewProxyServer(proxyAddr, targetAddr)
+	ps, err := internal_proxy.NewProxyServer(proxyAddr, deps.UserPATService)
 	if err != nil {
 		log.Fatalf("proxy server: %v", err)
 	}
 
 	go func() {
-		log.Printf("proxy server listening on %s -> %s", proxyAddr, targetAddr)
+		log.Printf("proxy server listening on %s (pat auth)", proxyAddr)
 		ps.Run()
 	}()
 

@@ -67,13 +67,13 @@ func (h *UserPATHandler) CreateUserPAT() http.HandlerFunc {
 
 		defer r.Body.Close()
 
-		newUserPAT, err := h.Service.CreateUserPAT(&payload)
+		plaintext, newUserPAT, err := h.Service.CreateUserPAT(&payload)
 		if err != nil {
 			log.Printf("error in creating user pat: %v", err)
 			http.Error(w, "failed to create user pat", http.StatusInternalServerError)
 			return
 		}
 
-		utils.EncodeJsonResponse(w, "create new user pat successfully", newUserPAT)
+		utils.EncodeJsonResponse(w, "create new user pat successfully", map[string]any{"plaintext": plaintext, "user_pat": newUserPAT})
 	})
 }

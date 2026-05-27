@@ -23,15 +23,12 @@ func (s *UserPATService) GetUserPATs(limit int, offset int) ([]models.UserPATMod
 	return s.Repository.GetUserPATs(limit, offset)
 }
 
-func (s *UserPATService) CreateUserPAT(payload *models.CreateUserPATPayload) (*models.UserPATModel, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return nil, err
+func (s *UserPATService) CreateUserPAT(payload *models.CreateUserPATPayload) (string, *models.UserPATModel, error) {
+	plaintext, hash, err := GenerateNewUserPAT()
+	if err != nil {
+		return "", nil, err
 	}
 
-	plaintext := "nam_tcp_" + hex.EncodeToString(buf)
-	sum := sha256.Sum256([]byte(plaintext))
-	hash := hex.EncodeToString(sum[:])
 	now := int(time.Now().Unix())
 
 	newUserPAT := &models.UserPATModel{
@@ -45,10 +42,28 @@ func (s *UserPATService) CreateUserPAT(payload *models.CreateUserPATPayload) (*m
 		TargetPort: payload.TargetPort,
 	}
 
-	err := s.Repository.CreateUserPAT(newUserPAT)
+	err = s.Repository.CreateUserPAT(newUserPAT)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return newUserPAT, nil
+	return plaintext, newUserPAT, nil
+}
+
+func GenerateNewUserPAT() (string, string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", "", err
+	}
+
+	plaintext := "nam_tcp_" + hex.EncodeToString(buf)
+	sum := sha256.Sum256([]byte(plaintext))
+	hash := hex.EncodeToString(sum[:])
+
+	return plaintext, hash, nil
+}
+
+func CompareUserPAT(token string, hash string) bool {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:]) == hash
 }

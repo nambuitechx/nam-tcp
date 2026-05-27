@@ -20,21 +20,28 @@ func GetDBConnection() *sql.DB {
 func Up(db *sql.DB) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
-            id    TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             email TEXT UNIQUE NOT NULL,
 			password TEXT NOT NULL,
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
         );
+		CREATE TABLE IF NOT EXISTS targets (
+            id TEXT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			host TEXT NOT NULL,
+			port TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+        );
 		CREATE TABLE IF NOT EXISTS user_pats (
-            id    TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
-            hash_token TEXT NOT NULL,
+            id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+            hash_token TEXT UNIQUE NOT NULL,
 			created_at INTEGER NOT NULL,
 			expires_at INTEGER NOT NULL,
-			revoked_at INTEGER NOT NULL,
-			target_host TEXT NOT NULL,
-			target_port TEXT NOT NULL
+			revoked_at INTEGER NOT NULL
         );
 	`)
 	if err != nil {

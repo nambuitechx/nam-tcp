@@ -15,13 +15,21 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) GetUsers(limit int, offset int) ([]models.UserModel, error) {
-	rows, err := r.DB.Query("SELECT id, email, password, created_at, updated_at FROM users LIMIT ? OFFSET ?", limit, offset)
+	var rows *sql.Rows
+	var err error
+	var users []models.UserModel = []models.UserModel{}
+
+	if limit == -1 {
+		rows, err = r.DB.Query("SELECT id, email, password, created_at, updated_at FROM users")
+	} else {
+		rows, err = r.DB.Query("SELECT id, email, password, created_at, updated_at FROM users LIMIT ? OFFSET ?", limit, offset)
+	}
+
 	if err != nil {
-		return nil, err
+		return users, err
 	}
 	defer rows.Close()
 
-	var users []models.UserModel
 	for rows.Next() {
 		var user models.UserModel
 		rows.Scan(&user.ID, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)

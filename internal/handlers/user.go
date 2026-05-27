@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/nambuitechx/nam-tcp/internal/models"
 	"github.com/nambuitechx/nam-tcp/internal/services"
@@ -21,27 +20,10 @@ func NewUserHandler(srv *services.UserService) *UserHandler {
 
 func (h *UserHandler) GetUsers() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limitStr := r.URL.Query().Get("limit")
-		offsetStr := r.URL.Query().Get("offset")
-
-		limit := -1
-		offset := 0
-		var err error
-
-		if limitStr != "" {
-			limit, err = strconv.Atoi(limitStr)
-			if err != nil {
-				http.Error(w, "invalid limit", http.StatusBadRequest)
-				return
-			}
-		}
-
-		if offsetStr != "" {
-			offset, err = strconv.Atoi(offsetStr)
-			if err != nil {
-				http.Error(w, "invalid offset", http.StatusBadRequest)
-				return
-			}
+		limit, offset := utils.ParseLimitAndOffset(r)
+		if offset == -1 {
+			http.Error(w, "invalid offset", http.StatusBadRequest)
+			return
 		}
 
 		users, err := h.Service.GetUsers(limit, offset)

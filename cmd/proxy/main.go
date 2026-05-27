@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	internal_db "github.com/nambuitechx/nam-tcp/internal/db"
+	internal_deps "github.com/nambuitechx/nam-tcp/internal/deps"
 	internal_http "github.com/nambuitechx/nam-tcp/internal/http"
 	internal_proxy "github.com/nambuitechx/nam-tcp/internal/proxy"
 )
@@ -18,7 +20,11 @@ func main() {
 	proxyAddr := envOr("PROXY_ADDR", ":8888")
 	targetAddr := envOr("PROXY_TARGET", "localhost:8001")
 
-	srv := internal_http.NewHttpServer()
+	db := internal_db.GetDBConnection()
+	internal_db.Up(db)
+
+	deps := internal_deps.NewServiceDeps(db)
+	srv := internal_http.NewHttpServer(deps)
 
 	s := &http.Server{
 		Addr:              httpAddr,
